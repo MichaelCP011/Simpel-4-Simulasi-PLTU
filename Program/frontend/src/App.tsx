@@ -94,7 +94,7 @@ export default function App() {
   const [fuelFeed, setFuelFeed] = useState(190);
   const [steamValve, setSteamValve] = useState(76);
   const [waterInlet, setWaterInlet] = useState(80);
-  const [airFlow, setAirFlow] = useState(65);
+  const [airFlow, setAirFlow] = useState(86);
   const [targetMw, setTargetMw] = useState(300);
 
   // --- STATE DATA SENSOR (DARI BACKEND) ---
