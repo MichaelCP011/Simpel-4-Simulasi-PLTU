@@ -1,19 +1,19 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, useProgress } from '@react-three/drei';
 import { Activity, Zap, AlertTriangle, Wind, Droplets, Thermometer, ShieldCheck, Power, Settings, Flame } from 'lucide-react';
 import GaugeComponent from 'react-gauge-component';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { io } from 'socket.io-client';
 import PltuModel from './components/PltuModel';
 
-/* ─────────────────────────────────────────────
-   DATA DUMMY UNTUK GRAFIK RECHARTS
-   ───────────────────────────────────────────── */
-const mwData = [
-  { val: 240 }, { val: 255 }, { val: 260 }, { val: 252 }, { val: 270 },
-  { val: 265 }, { val: 280 }, { val: 275 }, { val: 285 }, { val: 278 }
-];
+// Inisiasi koneksi ke Backend Python (Port 5000)
+const socket = io('http://localhost:5000');
 
+/* ─────────────────────────────────────────────
+   DATA DUMMY AWAL (Akan digantikan data real-time)
+   ───────────────────────────────────────────── */
+const initialMwData = Array(15).fill({ val: 0 });
 const coolingData = [
   { flow: 34000 }, { flow: 34500 }, { flow: 35000 }, { flow: 35200 },
   { flow: 35000 }, { flow: 34800 }, { flow: 35000 }
@@ -27,12 +27,13 @@ function Knob({ label, value, onChange, color = '#00f0ff', size = 72 }: { label:
   return (
     <div className="flex flex-col items-center gap-1 relative">
       <div
-        className="relative rounded-full flex items-center justify-center transition-transform hover:scale-105"
+        className="relative flex items-center justify-center transition-transform hover:scale-105 rounded-md"
         style={{
           width: size, height: size,
           background: 'radial-gradient(circle at 40% 30%, #1e293b, #020617)',
           border: `2px solid #334155`,
           boxShadow: `0 0 10px rgba(0,0,0,0.8), inset 0 2px 4px rgba(255,255,255,0.1)`,
+          borderRadius: '50%' // Knob tetap butuh bulat untuk UX putar
         }}
       >
         <svg viewBox="0 0 72 72" className="absolute inset-0 w-full h-full pointer-events-none">
@@ -52,14 +53,14 @@ function Knob({ label, value, onChange, color = '#00f0ff', size = 72 }: { label:
           })}
         </svg>
         <div
-          className="absolute w-1 rounded-full origin-bottom pointer-events-none"
+          className="absolute w-1 origin-bottom pointer-events-none rounded-md"
           style={{
             height: '36%', bottom: '50%', left: 'calc(50% - 2px)',
             background: color, boxShadow: `0 0 8px ${color}`,
             transform: `rotate(${angle}deg)`, transition: 'transform 0.1s ease-out',
           }}
         />
-        <div className="w-3 h-3 rounded-full bg-slate-700 border border-slate-500 z-10 pointer-events-none" />
+        <div className="w-3 h-3 bg-slate-700 border border-slate-500 z-10 pointer-events-none rounded-md" />
       </div>
       
       {/* Invisible Slider untuk interaksi drag mouse */}
@@ -88,11 +89,64 @@ function Loader() {
 }
 
 export default function App() {
+  // --- STATE KONTROL ---
   const [isAuto, setIsAuto] = useState(false);
   const [fuelFeed, setFuelFeed] = useState(190);
   const [steamValve, setSteamValve] = useState(76);
   const [waterInlet, setWaterInlet] = useState(80);
   const [airFlow, setAirFlow] = useState(65);
+  const [targetMw, setTargetMw] = useState(300);
+
+  // --- STATE DATA SENSOR (DARI BACKEND) ---
+  const [simData, setSimData] = useState({
+    mw_out: 0.0,
+    steam_press: 0.0,
+    boiler_temp: 30.0,
+    steam_flow: 0.0,
+    health: 100.0,
+    is_tripped: false,
+    alarms: [] as string[]
+  });
+
+  const [mwHistory, setMwHistory] = useState(initialMwData);
+
+  // --- EFEK 1: MENDENGARKAN DATA DARI PYTHON ---
+  useEffect(() => {
+    socket.on('sim_update', (data) => {
+      setSimData(data);
+      
+      // Update grafik area MW (maksimal 15 titik data terakhir)
+      setMwHistory(prev => {
+        const newHistory = [...prev, { val: data.mw_out }];
+        if (newHistory.length > 15) newHistory.shift(); 
+        return newHistory;
+      });
+
+      // Jika mode AUTO aktif, sinkronkan nilai UI agar slider bergerak sendiri
+      if (isAuto && data.current_fuel !== undefined) {
+        setFuelFeed(data.current_fuel);
+        setSteamValve(data.current_valve);
+      }
+    });
+
+    return () => {
+      socket.off('sim_update');
+    };
+  }, [isAuto]);
+
+  // --- EFEK 2: MENGIRIM DATA KONTROL KE PYTHON ---
+  useEffect(() => {
+    socket.emit('control_update', {
+      fuel_feed: fuelFeed,
+      steam_valve: steamValve,
+      is_auto: isAuto,
+      target_mw: targetMw
+    });
+  }, [fuelFeed, steamValve, isAuto, targetMw]);
+
+  const handleSystemCommand = (command: string) => {
+    socket.emit('system_command', command);
+  };
 
   const panelStyle = {
     background: 'rgba(15, 23, 42, 0.45)',
@@ -112,7 +166,7 @@ export default function App() {
       <div className="absolute inset-0 bg-slate-950/60 z-0 pointer-events-none" />
 
       {/* ── NAVIGASI ATAS ────────────────────────────── */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center justify-between w-[500px] bg-slate-900/40 backdrop-blur-md border border-slate-600/40 rounded-lg p-1 shadow-2xl">
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center justify-between w-[500px] bg-slate-900/40 backdrop-blur-md border border-slate-600/40 rounded-md p-1 shadow-2xl">
         <button className="flex-1 py-2 text-gray-400 font-bold tracking-widest text-xs hover:text-white transition rounded-md">DATA</button>
         <button className="flex-1 py-3 bg-blue-900/60 border border-[#00f0ff]/50 text-[#00f0ff] font-bold tracking-widest text-xs shadow-[0_0_15px_rgba(0,240,255,0.3)] rounded-md">SIMULATION</button>
         <button className="flex-1 py-2 text-gray-400 font-bold tracking-widest text-xs hover:text-white transition rounded-md">ANALYTIC</button>
@@ -121,18 +175,20 @@ export default function App() {
       {/* ══════════════════════════════════════════
           PANEL KIRI — SYSTEM MONITORING
       ══════════════════════════════════════════ */}
-      <div className="absolute top-8 left-6 bottom-[100px] w-[420px] rounded-lg p-5 flex flex-col gap-4 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
+      <div className="absolute top-8 left-6 bottom-[100px] w-[420px] rounded-md p-5 flex flex-col gap-4 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
         
         <h2 className="text-center font-bold tracking-[0.2em] text-sm text-gray-200 border-b border-slate-600/50 pb-3">SYSTEM MONITORING</h2>
 
-        <div className="rounded-lg p-4 flex flex-col" style={sectionStyle}>
+        <div className="rounded-md p-4 flex flex-col" style={sectionStyle}>
           <div className="flex justify-between items-center mb-1">
             <span className="text-[10px] font-bold tracking-widest text-gray-400">TOTAL OUTPUT (MW)</span>
-            <span className="font-mono font-black text-3xl" style={{ color: '#00f0ff', textShadow: '0 0 15px rgba(0,240,255,0.6)' }}>285.4</span>
+            <span className="font-mono font-black text-3xl" style={{ color: '#00f0ff', textShadow: '0 0 15px rgba(0,240,255,0.6)' }}>
+              {simData.mw_out.toFixed(1)}
+            </span>
           </div>
           <div className="w-full h-[50px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mwData}>
+              <AreaChart data={mwHistory}>
                 <defs>
                   <linearGradient id="colorMw" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#00f0ff" stopOpacity={0.5}/>
@@ -147,43 +203,49 @@ export default function App() {
 
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(0,240,255,0.1))' }}>
+            <div className="rounded-md p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(0,240,255,0.1))' }}>
               <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">STEAM PRESS</span>
               <GaugeComponent
                 type="semicircle"
                 arc={{ colorArray: ['#00f0ff', '#ff003c'], padding: 0.02, width: 0.15 }}
                 pointer={{ type: "needle", color: '#ffffff', animationDelay: 0, length: 0.8 }}
                 labels={{ valueLabel: { matchColorWithArc: true, formatTextValue: () => '' }, tickLabels: { hideMinMax: true } }}
-                value={65} style={{ width: '100%', marginBottom: '-25px' }}
+                value={Math.min(100, (simData.steam_press / 200) * 100)} 
+                style={{ width: '100%', marginBottom: '-25px' }}
               />
             </div>
 
-            <div className="rounded-lg p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(255,0,60,0.1))' }}>
+            <div className="rounded-md p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(255,0,60,0.1))' }}>
               <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">BOILER TEMP</span>
               <GaugeComponent
                 type="semicircle"
                 arc={{ colorArray: ['#00f0ff', '#ff003c'], padding: 0.02, width: 0.15 }}
                 pointer={{ type: "needle", color: '#ffffff', animationDelay: 0, length: 0.8 }}
                 labels={{ valueLabel: { matchColorWithArc: true, formatTextValue: () => '' }, tickLabels: { hideMinMax: true } }}
-                value={82} style={{ width: '100%', marginBottom: '-25px' }}
+                value={Math.min(100, (simData.boiler_temp / 600) * 100)} 
+                style={{ width: '100%', marginBottom: '-25px' }}
               />
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg p-2 flex justify-center items-end gap-1" style={sectionStyle}>
-              <span className="font-mono text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_#00f0ff]">162</span>
+            <div className="rounded-md p-2 flex justify-center items-end gap-1" style={sectionStyle}>
+              <span className="font-mono text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_#00f0ff]">
+                {simData.steam_press.toFixed(1)}
+              </span>
               <span className="font-mono text-[10px] font-bold text-[#00f0ff] pb-1">Bar</span>
             </div>
-            <div className="rounded-lg p-2 flex justify-center items-end gap-1" style={sectionStyle}>
-              <span className="font-mono text-2xl font-bold text-[#ff003c] drop-shadow-[0_0_8px_#ff003c]">538</span>
+            <div className="rounded-md p-2 flex justify-center items-end gap-1" style={sectionStyle}>
+              <span className="font-mono text-2xl font-bold text-[#ff003c] drop-shadow-[0_0_8px_#ff003c]">
+                {simData.boiler_temp.toFixed(1)}
+              </span>
               <span className="font-mono text-[10px] font-bold text-[#ff003c] pb-1">°C</span>
             </div>
           </div>
         </div>
 
         <div className="flex gap-3 h-full min-h-[140px]">
-          <div className="flex-[3] rounded-lg p-3 flex flex-col" style={sectionStyle}>
+          <div className="flex-[3] rounded-md p-3 flex flex-col" style={sectionStyle}>
             <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">COOLING FLOW</span>
             <div className="flex-1 w-full min-h-[70px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -199,22 +261,24 @@ export default function App() {
               </ResponsiveContainer>
             </div>
             <div className="flex justify-center text-[11px] font-mono mt-1 font-bold">
-              <span className="text-blue-400 drop-shadow-md">35,200 m³/h</span>
+              <span className="text-blue-400 drop-shadow-md">
+                {(waterInlet * 440).toLocaleString()} m³/h
+              </span>
             </div>
           </div>
 
-          <div className="flex-[2] rounded-lg p-3 flex flex-col" style={sectionStyle}>
+          <div className="flex-[2] rounded-md p-3 flex flex-col" style={sectionStyle}>
             <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2 text-center">STATUS</span>
             <div className="grid grid-cols-3 gap-2 justify-items-center mt-1">
-              <Activity className="w-5 h-5 text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]" />
-              <ShieldCheck className="w-5 h-5 text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]" />
-              <Wind className="w-5 h-5 text-[#00f0ff] animate-spin-slow drop-shadow-[0_0_5px_#00f0ff]" />
+              <Activity className={`w-5 h-5 ${simData.is_tripped ? 'text-red-500' : 'text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]'}`} />
+              <ShieldCheck className={`w-5 h-5 ${simData.health < 50 ? 'text-yellow-500' : 'text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]'}`} />
+              <Wind className={`w-5 h-5 ${simData.steam_flow > 10 ? 'text-[#00f0ff] animate-spin-slow drop-shadow-[0_0_5px_#00f0ff]' : 'text-slate-600'}`} />
               <Droplets className="w-5 h-5 text-[#00f0ff]" />
-              <Power className="w-5 h-5 text-[#00f0ff]" />
-              <Thermometer className="w-5 h-5 text-yellow-400 drop-shadow-[0_0_5px_#facc15]" />
-              <AlertTriangle className="w-5 h-5 text-slate-600" />
+              <Power className={`w-5 h-5 ${simData.mw_out > 0 ? 'text-[#00f0ff]' : 'text-slate-600'}`} />
+              <Thermometer className={`w-5 h-5 ${simData.boiler_temp > 550 ? 'text-red-500 animate-pulse' : 'text-yellow-400 drop-shadow-[0_0_5px_#facc15]'}`} />
+              <AlertTriangle className={`w-5 h-5 ${simData.alarms.length > 0 ? 'text-red-500 animate-pulse' : 'text-slate-600'}`} />
               <Settings className="w-5 h-5 text-slate-500" />
-              <Flame className="w-5 h-5 text-[#ff003c] drop-shadow-[0_0_5px_#ff003c] animate-pulse" />
+              <Flame className={`w-5 h-5 ${fuelFeed > 0 ? 'text-[#ff003c] drop-shadow-[0_0_5px_#ff003c] animate-pulse' : 'text-slate-600'}`} />
             </div>
           </div>
         </div>
@@ -223,25 +287,25 @@ export default function App() {
       {/* ══════════════════════════════════════════
           PANEL KANAN — CONTROL PANEL
       ══════════════════════════════════════════ */}
-      <div className="absolute top-8 right-6 bottom-[100px] w-[380px] rounded-lg p-5 flex flex-col gap-5 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
+      <div className="absolute top-8 right-6 bottom-[100px] w-[380px] rounded-md p-5 flex flex-col gap-5 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
         
         <h2 className="text-center font-bold tracking-[0.2em] text-sm text-gray-200 border-b border-slate-600/50 pb-3">CONTROL PANEL</h2>
 
-        <div className="flex items-center p-1 rounded-lg" style={sectionStyle}>
+        <div className="flex items-center p-1 rounded-md" style={sectionStyle}>
           <button onClick={() => setIsAuto(false)} className={`flex-1 rounded-md py-2.5 font-bold tracking-widest text-[10px] transition-all duration-300 ${!isAuto ? 'bg-blue-600/80 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)] border border-blue-400/50' : 'text-gray-400 hover:text-white'}`}>MANUAL</button>
           <button onClick={() => setIsAuto(true)} className={`flex-1 rounded-md py-2.5 font-bold tracking-widest text-[10px] transition-all duration-300 ${isAuto ? 'bg-purple-600/80 text-white shadow-[0_0_15px_rgba(147,51,234,0.5)] border border-purple-400/50' : 'text-gray-400 hover:text-white'}`}>AUTO (AI)</button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 rounded-lg p-3" style={sectionStyle}>
-          <button className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-green-500/10 border border-green-500/50 hover:bg-green-500/30 transition active:scale-95 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+        <div className="grid grid-cols-3 gap-3 rounded-md p-3" style={sectionStyle}>
+          <button onClick={() => handleSystemCommand('START')} className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-green-500/10 border border-green-500/50 hover:bg-green-500/30 transition active:scale-95 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
             <Power className="w-5 h-5 text-green-400 drop-shadow-[0_0_5px_#4ade80]" />
             <span className="text-[9px] font-bold tracking-wider text-green-400">START</span>
           </button>
-          <button className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-yellow-500/10 border border-yellow-500/50 hover:bg-yellow-500/30 transition active:scale-95 shadow-[0_0_10px_rgba(234,179,8,0.2)]">
+          <button onClick={() => handleSystemCommand('STOP')} className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-yellow-500/10 border border-yellow-500/50 hover:bg-yellow-500/30 transition active:scale-95 shadow-[0_0_10px_rgba(234,179,8,0.2)]">
             <AlertTriangle className="w-5 h-5 text-yellow-400 drop-shadow-[0_0_5px_#facc15]" />
             <span className="text-[9px] font-bold tracking-wider text-yellow-400">STOP</span>
           </button>
-          <button className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-red-600/20 border border-red-500/60 hover:bg-red-600/40 transition active:scale-95 shadow-[0_0_15px_rgba(255,0,60,0.4)]">
+          <button onClick={() => handleSystemCommand('ESTOP')} className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-red-600/20 border border-red-500/60 hover:bg-red-600/40 transition active:scale-95 shadow-[0_0_15px_rgba(255,0,60,0.4)]">
             <Activity className="w-5 h-5 text-[#ff003c] drop-shadow-[0_0_8px_#ff003c]" />
             <span className="text-[9px] font-bold tracking-wider text-red-100">E-STOP</span>
           </button>
@@ -249,14 +313,14 @@ export default function App() {
 
         {isAuto ? (
           <div className="flex flex-col gap-4 mt-2">
-            <div className="flex flex-col gap-3 rounded-lg p-5" style={{ ...sectionStyle, border: '1px solid rgba(147,51,234,0.3)', background: 'rgba(30,41,59,0.7)' }}>
+            <div className="flex flex-col gap-3 rounded-md p-5" style={{ ...sectionStyle, border: '1px solid rgba(147,51,234,0.3)', background: 'rgba(30,41,59,0.7)' }}>
               <span className="text-[10px] font-bold tracking-widest text-purple-300 text-center">AI TARGET LOAD (MW)</span>
               
-              {/* REVISI 1: Tata letak Input dan Tombol dengan pembagian w-3/4 dan w-1/4 agar proporsional */}
               <div className="flex gap-2 w-full">
                 <input 
                   type="number" 
-                  defaultValue={300} 
+                  value={targetMw} 
+                  onChange={(e) => setTargetMw(Number(e.target.value))}
                   className="w-3/4 bg-slate-900 border border-slate-600 rounded-md py-2 px-3 text-[#00f0ff] font-mono font-bold text-2xl text-center outline-none focus:border-purple-500 transition-colors" 
                 />
                 <button className="w-1/4 bg-purple-600/80 hover:bg-purple-500 border border-purple-400 text-white font-bold text-[10px] tracking-widest rounded-md transition-all shadow-[0_0_15px_rgba(147,51,234,0.5)] active:scale-95">
@@ -280,15 +344,15 @@ export default function App() {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-2 gap-3 rounded-lg p-4" style={sectionStyle}>
+            <div className="grid grid-cols-2 gap-3 rounded-md p-4" style={sectionStyle}>
               <Knob label="WATER INLET" value={waterInlet} onChange={setWaterInlet} color="#00f0ff" size={80} />
               <Knob label="AIR FLOW" value={airFlow} onChange={setAirFlow} color="#a855f7" size={80} />
             </div>
 
-            <div className="rounded-lg px-4 py-4 flex flex-col gap-2" style={sectionStyle}>
+            <div className="rounded-md px-4 py-4 flex flex-col gap-2" style={sectionStyle}>
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold tracking-widest text-gray-400">STEAM VALVE</span>
-                <span className="font-mono text-sm font-bold text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]">{steamValve}%</span>
+                <span className="font-mono text-sm font-bold text-[#00f0ff] drop-shadow-[0_0_5px_#00f0ff]">{steamValve.toFixed(1)}%</span>
               </div>
               <div className="relative mt-1">
                 <input 
@@ -300,12 +364,12 @@ export default function App() {
               </div>
             </div>
 
-            <div className="rounded-lg p-4 flex flex-col gap-3" style={sectionStyle}>
+            <div className="rounded-md p-4 flex flex-col gap-3" style={sectionStyle}>
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold tracking-widest text-gray-400">FUEL FEED</span>
                 <div className="flex items-center gap-2 bg-slate-900 rounded-md p-1 border border-slate-700 shadow-inner">
                    <button onClick={() => setFuelFeed(f => Math.max(0, f - 5))} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-gray-300 font-bold active:scale-95 transition">-</button>
-                   <span className="text-sm font-mono font-bold text-[#ff003c] drop-shadow-[0_0_5px_#ff003c] w-14 text-center">{fuelFeed} t/h</span>
+                   <span className="text-sm font-mono font-bold text-[#ff003c] drop-shadow-[0_0_5px_#ff003c] w-14 text-center">{fuelFeed.toFixed(1)} t/h</span>
                    <button onClick={() => setFuelFeed(f => Math.min(220, f + 5))} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-gray-300 font-bold active:scale-95 transition">+</button>
                 </div>
               </div>
@@ -315,25 +379,34 @@ export default function App() {
       </div>
 
       {/* ══════════════════════════════════════════
-          REVISI 2: PANEL BAWAH (KOORDINAT KIRI & KANAN ABSOLUT)
+          PANEL BAWAH (SYSTEM STATUS BAR)
       ══════════════════════════════════════════ */}
-      {/* Menggunakan left-[460px] (420px panel kiri + 24px margin + 16px jarak) dan right-[420px] untuk presisi */}
-      <div className="absolute bottom-6 left-[460px] right-[420px] min-w-[300px] h-[72px] rounded-lg p-4 flex items-center gap-6 z-10 pointer-events-auto text-white" style={panelStyle}>
+      <div className="absolute bottom-6 left-[460px] right-[420px] min-w-[300px] h-[72px] rounded-md p-4 flex items-center gap-6 z-10 pointer-events-auto text-white" style={panelStyle}>
         <div className="flex-1 border-r border-slate-600/50 flex flex-col justify-center pl-2">
           <div className="flex items-center gap-3 mb-1">
             <h3 className="font-bold text-[11px] tracking-widest text-gray-400">SYSTEM STATUS:</h3>
-            <span className="text-green-400 text-xs font-bold tracking-widest flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></span>
-              OPERATIONAL
+            <span className={`${simData.is_tripped ? 'text-red-500' : simData.is_running ? 'text-green-400' : 'text-gray-400'} text-xs font-bold tracking-widest flex items-center gap-2`}>
+              <span className={`w-2.5 h-2.5 rounded-md ${simData.is_tripped ? 'bg-red-500' : simData.is_running ? 'bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]' : 'bg-gray-500'}`}></span>
+              {simData.is_tripped ? 'TRIPPED' : simData.is_running ? 'OPERATIONAL' : 'STANDBY'}
             </span>
           </div>
-          <p className="text-[10px] text-gray-400 font-mono tracking-wide mt-1">Efficiency 85.2% &nbsp;|&nbsp; Grid Synced 50Hz</p>
+          <p className="text-[10px] text-gray-400 font-mono tracking-wide mt-1">
+            Health {simData.health}% &nbsp;|&nbsp; {simData.mw_out > 0 ? 'Grid Synced' : 'Disconnected'}
+          </p>
         </div>
         
         <div className="flex-[1.5] flex flex-col justify-center">
           <h3 className="text-[10px] font-bold tracking-widest text-gray-500 mb-1">NOTIFICATIONS:</h3>
-          <p className="text-[10px] font-mono text-gray-300 mb-0.5">[11:34:02] Steam valve adjusted. Target load stable.</p>
-          <p className="text-[10px] font-mono text-gray-400">[11:32:55] Boiler temperature reached nominal threshold.</p>
+          {simData.alarms.length > 0 ? (
+            simData.alarms.map((alarm, idx) => (
+              <p key={idx} className="text-[10px] font-mono text-red-400 mb-0.5">[{new Date().toLocaleTimeString()}] {alarm}</p>
+            ))
+          ) : (
+            <>
+              <p className="text-[10px] font-mono text-gray-300 mb-0.5">[{new Date().toLocaleTimeString()}] Steam valve adjusted. Target load stable.</p>
+              <p className="text-[10px] font-mono text-gray-400">[{new Date().toLocaleTimeString()}] System running smoothly.</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -353,7 +426,7 @@ export default function App() {
             enableZoom={true} 
             enableRotate={true}
             autoRotate={true} 
-            autoRotateSpeed={2} 
+            autoRotateSpeed={3} 
             maxPolarAngle={Math.PI / 2 - 0.02}
             minDistance={30}
             maxDistance={400}

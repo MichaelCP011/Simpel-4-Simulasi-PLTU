@@ -17,6 +17,7 @@
     "react-dom": "^19.2.6",
     "react-gauge-component": "^2.0.29",
     "recharts": "^3.8.1",
+    "socket.io-client": "^4.8.3",
     "three": "^0.184.0"
   },
   "devDependencies": {
