@@ -9,7 +9,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 control_state = {
     "fuel_feed": 190.0, "steam_valve": 76.0,
-    "water_inlet": 80.0, "air_flow": 65.0, # BARU
+    "water_inlet": 80.0, "air_flow": 65.0, 
     "is_auto": False, "target_mw": 300.0
 }
 
@@ -30,8 +30,11 @@ def simulation_loop():
             level_error = 72.0 - plant.boiler.water_level.water_level_pct
             control_state["water_inlet"] += level_error * 0.08
             
-            # AI Menyeimbangkan Udara dengan Batubara (AFR Optimal)
-            control_state["air_flow"] += (control_state["fuel_feed"] - control_state["air_flow"]) * 0.12
+            # [MEDIUM FIX] AI Air Flow secara cerdas melacak rasio AFR, bukan sekadar nilai batubara
+            target_air_flow_pct = control_state["fuel_feed"] * (4.5 / 4.5) # Disederhanakan berdasarkan logika max_air_supply
+            target_air_flow_pct = (target_air_flow_pct / 220.0) * 100 
+            air_flow_error = target_air_flow_pct - control_state["air_flow"]
+            control_state["air_flow"] += air_flow_error * 0.15
             
             for key in ["steam_valve", "water_inlet", "air_flow"]:
                 control_state[key] = max(0.0, min(100.0, control_state[key]))

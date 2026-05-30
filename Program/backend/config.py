@@ -1,12 +1,14 @@
 # ==========================================
 # KONSTANTA FISIKA & PARAMETER PLTU 300 MW
 # ==========================================
+
 LHV_COAL = 17.5
 FURNACE_EFF = 0.88
 MAX_COAL_FEED = 220.0
 
 BOILER_MASS = 50000.0
-CP_BOILER = 0.0023
+# [CRITICAL FIX] Menggunakan 0.5 untuk merepresentasikan thermal inertia gabungan baja & air
+CP_BOILER = 0.5         
 NOMINAL_TEMP = 540.0
 NOMINAL_PRESSURE = 165.0
 
@@ -19,19 +21,17 @@ TURBINE_EFF = 0.85
 ENTHALPY_DROP_NOMINAL = 1.293
 GENERATOR_EFF = 0.98
 
-# --- PARAMETER BARU ENVIRONMENTAL & SAFETY ---
 OPTIMAL_AFR = 4.5
 MAX_AIR_SUPPLY_KGS = 0.5
 MAX_FEEDWATER_RATE_KGS = 35.0
 
-# BATAS CAUTION (Degradasi perlahan)
 CAUTION_TEMP = 560.0
 CAUTION_PRESS = 185.0
-CAUTION_LEVEL_LOW = 40.0
-CAUTION_LEVEL_HIGH = 85.0
+# [MEDIUM FIX] Margin level air diperketat agar lebih realistis
+CAUTION_LEVEL_LOW = 45.0  
+CAUTION_LEVEL_HIGH = 80.0 
 
-# BATAS FATAL (Ledakan/Hancur Seketika)
-FATAL_TEMP = 650.0       # Baja meleleh/kehilangan yield strength
-FATAL_PRESS = 220.0      # Menembus batas safety valve absolute
-FATAL_LEVEL_LOW = 10.0   # Kering total (Boiler Tube Melt)
-FATAL_LEVEL_HIGH = 95.0  # Banjir total (Turbine Water Induction)
+FATAL_TEMP = 650.0       
+FATAL_PRESS = 220.0      
+FATAL_LEVEL_LOW = 15.0   
+FATAL_LEVEL_HIGH = 90.0
