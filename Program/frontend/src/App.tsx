@@ -139,6 +139,8 @@ export default function App() {
     socket.emit('control_update', {
       fuel_feed: fuelFeed,
       steam_valve: steamValve,
+      water_inlet: waterInlet,
+      air_flow: airFlow,
       is_auto: isAuto,
       target_mw: targetMw
     });

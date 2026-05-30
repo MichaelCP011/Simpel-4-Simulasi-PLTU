@@ -1,28 +1,37 @@
 # ==========================================
 # KONSTANTA FISIKA & PARAMETER PLTU 300 MW
-# (REVISI BERDASARKAN STANDAR TERMODINAMIKA)
 # ==========================================
+LHV_COAL = 17.5
+FURNACE_EFF = 0.88
+MAX_COAL_FEED = 220.0
 
-# Parameter Batubara & Pembakaran
-LHV_COAL = 17.5         # Nilai Kalor Bawah batubara (MJ/kg)
-FURNACE_EFF = 0.88      # Efisiensi perpindahan panas
-MAX_COAL_FEED = 220.0   # Kapasitas maksimum coal feeder (ton/jam)
+BOILER_MASS = 50000.0
+CP_BOILER = 0.0023
+NOMINAL_TEMP = 540.0
+NOMINAL_PRESSURE = 165.0
 
-# Parameter Boiler & Air
-BOILER_MASS = 50000.0   # Massa ekuivalen boiler & air (kg)
-CP_BOILER = 0.0023      # [REVISI] Kapasitas panas spesifik saturated steam (MJ/kg°C)
-NOMINAL_TEMP = 540.0    # Suhu desain uap utama (°C)
-NOMINAL_PRESSURE = 165.0# Tekanan desain uap utama (Bar)
+ENTHALPY_FEED_WATER = 0.167
+ENTHALPY_STEAM_OUT = 3.456
+ENTHALPY_RISE = ENTHALPY_STEAM_OUT - ENTHALPY_FEED_WATER
 
-# Parameter Entalpi (Hukum Termodinamika I)
-ENTHALPY_FEED_WATER = 0.167 # [REVISI] Entalpi air masuk pada ~40°C (MJ/kg)
-ENTHALPY_STEAM_OUT = 3.456  # [REVISI] Entalpi uap keluar pada 540°C, 165 bar (MJ/kg)
-ENTHALPY_RISE = ENTHALPY_STEAM_OUT - ENTHALPY_FEED_WATER # ~3.289 MJ/kg (Energi yang diserap)
+VALVE_CV = 28.0
+TURBINE_EFF = 0.85
+ENTHALPY_DROP_NOMINAL = 1.293
+GENERATOR_EFF = 0.98
 
-# Parameter Valve & Turbin
-VALVE_CV = 28.0         # Koefisien aliran katup
-TURBINE_EFF = 0.85      # Efisiensi isentropik turbin uap
-ENTHALPY_DROP_NOMINAL = 1.293 # [REVISI] Penurunan entalpi ideal dari 165 bar ke 5 bar (MJ/kg)
+# --- PARAMETER BARU ENVIRONMENTAL & SAFETY ---
+OPTIMAL_AFR = 4.5
+MAX_AIR_SUPPLY_KGS = 0.5
+MAX_FEEDWATER_RATE_KGS = 35.0
 
-# Parameter Generator
-GENERATOR_EFF = 0.98    # Efisiensi generator
+# BATAS CAUTION (Degradasi perlahan)
+CAUTION_TEMP = 560.0
+CAUTION_PRESS = 185.0
+CAUTION_LEVEL_LOW = 40.0
+CAUTION_LEVEL_HIGH = 85.0
+
+# BATAS FATAL (Ledakan/Hancur Seketika)
+FATAL_TEMP = 650.0       # Baja meleleh/kehilangan yield strength
+FATAL_PRESS = 220.0      # Menembus batas safety valve absolute
+FATAL_LEVEL_LOW = 10.0   # Kering total (Boiler Tube Melt)
+FATAL_LEVEL_HIGH = 95.0  # Banjir total (Turbine Water Induction)

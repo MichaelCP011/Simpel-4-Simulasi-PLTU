@@ -1,36 +1,36 @@
 import config
 import math
+from components.environmental_controls import BoilerWaterLevel
 
 class Boiler:
     def __init__(self):
         self.temperature = config.NOMINAL_TEMP
         self.pressure = config.NOMINAL_PRESSURE
+        self.water_level = BoilerWaterLevel()
 
-    def update(self, q_in_mw, steam_flow_out_kgs, dt=1.0):
-        # [REVISI] Q_out sekarang menggunakan selisih entalpi (H_out - H_in) yang benar!
-        q_out_mw = steam_flow_out_kgs * config.ENTHALPY_RISE
+    def update(self, q_in_mw, steam_flow_out_kgs, water_inlet_pct, dt=1.0):
+        # 1. Update massa air di drum
+        self.water_level.update(steam_flow_out_kgs, water_inlet_pct, dt)
         
-        # [REVISI] dT/dt dengan nilai Cp yang akurat (0.0023 MJ/kgK)
-        dt_temp = ((q_in_mw - q_out_mw) / (config.BOILER_MASS * config.CP_BOILER)) * dt
-        self.temperature += dt_temp
-
+        # 2. Kalkulasi energi keluar (Uap) dan energi terserap pendinginan (Air Masuk)
+        q_out_mw = steam_flow_out_kgs * config.ENTHALPY_RISE
+        dt_temp_from_inlet = self.water_level.get_temperature_impact() * dt
+        
+        # 3. Update suhu boiler (Energi Masuk - Energi Keluar - Pendinginan)
+        dt_temp_from_flow = ((q_in_mw - q_out_mw) / (config.BOILER_MASS * config.CP_BOILER)) * dt
+        self.temperature += dt_temp_from_flow + dt_temp_from_inlet
+        
         if self.temperature < 30.0:
             self.temperature = 30.0
 
-        # [REVISI] Menggunakan Persamaan Clausius-Clapeyron untuk tekanan
+        # 4. Update Tekanan (Clausius-Clapeyron)
         if self.temperature > 100.0:
-            delta_h_vap = 2257.0  # kJ/kg (entalpi vaporisasi)
-            R_specific = 0.461    # kJ/kgK (konstanta spesifik uap)
-            t_kelvin = self.temperature + 273.15
-            t_nominal_kelvin = config.NOMINAL_TEMP + 273.15
-            
-            exponent = (delta_h_vap / R_specific) * ((1.0 / t_nominal_kelvin) - (1.0 / t_kelvin))
-            
+            exponent = (2257.0 / 0.461) * ((1.0 / (config.NOMINAL_TEMP + 273.15)) - (1.0 / (self.temperature + 273.15)))
             try:
                 self.pressure = config.NOMINAL_PRESSURE * math.exp(exponent)
             except OverflowError:
-                self.pressure = 250.0 # Safety cap jika suhu meledak terlalu tinggi
+                self.pressure = 300.0 # Mentok untuk memicu fatal error
         else:
             self.pressure = 1.0
 
-        return self.temperature, self.pressure
+        return self.temperature, self.pressure, self.water_level.water_level_pct
