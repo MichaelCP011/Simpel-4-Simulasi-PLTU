@@ -7,21 +7,17 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { io } from 'socket.io-client';
 import PltuModel from './components/PltuModel';
 
-// Inisiasi koneksi ke Backend Python (Port 5000)
+
 const socket = io('http://localhost:5000');
 
-/* ─────────────────────────────────────────────
-   DATA DUMMY AWAL (Akan digantikan data real-time)
-   ───────────────────────────────────────────── */
+
 const initialMwData = Array(15).fill({ val: 0 });
 const coolingData = [
   { flow: 34000 }, { flow: 34500 }, { flow: 35000 }, { flow: 35200 },
   { flow: 35000 }, { flow: 34800 }, { flow: 35000 }
 ];
 
-/* ─────────────────────────────────────────────
-   KOMPONEN KNOB INTERAKTIF
-   ───────────────────────────────────────────── */
+
 function Knob({ label, value, onChange, color = '#00f0ff', size = 72 }: { label: string, value: number, onChange: (val: number) => void, color?: string, size?: number }) {
   const angle = -135 + (value / 100) * 270;
   return (
@@ -33,7 +29,7 @@ function Knob({ label, value, onChange, color = '#00f0ff', size = 72 }: { label:
           background: 'radial-gradient(circle at 40% 30%, #1e293b, #020617)',
           border: `2px solid #334155`,
           boxShadow: `0 0 10px rgba(0,0,0,0.8), inset 0 2px 4px rgba(255,255,255,0.1)`,
-          borderRadius: '50%' // Knob tetap butuh bulat untuk UX putar
+          borderRadius: '50%' 
         }}
       >
         <svg viewBox="0 0 72 72" className="absolute inset-0 w-full h-full pointer-events-none">
@@ -63,7 +59,7 @@ function Knob({ label, value, onChange, color = '#00f0ff', size = 72 }: { label:
         <div className="w-3 h-3 bg-slate-700 border border-slate-500 z-10 pointer-events-none rounded-md" />
       </div>
       
-      {/* Invisible Slider untuk interaksi drag mouse */}
+      {}
       <input 
         type="range" min="0" max="100" value={value}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -89,7 +85,7 @@ function Loader() {
 }
 
 export default function App() {
-  // --- STATE KONTROL ---
+  
   const [isAuto, setIsAuto] = useState(false);
   const [fuelFeed, setFuelFeed] = useState(190);
   const [steamValve, setSteamValve] = useState(76);
@@ -97,7 +93,7 @@ export default function App() {
   const [airFlow, setAirFlow] = useState(86);
   const [targetMw, setTargetMw] = useState(300);
 
-  // --- STATE DATA SENSOR (DARI BACKEND) ---
+  
   const [simData, setSimData] = useState({
     mw_out: 0.0,
     steam_press: 0.0,
@@ -111,19 +107,19 @@ export default function App() {
 
   const [mwHistory, setMwHistory] = useState(initialMwData);
 
-  // --- EFEK 1: MENDENGARKAN DATA DARI PYTHON ---
+  
   useEffect(() => {
     socket.on('sim_update', (data) => {
       setSimData(data);
       
-      // Update grafik area MW (maksimal 15 titik data terakhir)
+      
       setMwHistory(prev => {
         const newHistory = [...prev, { val: data.mw_out }];
         if (newHistory.length > 15) newHistory.shift(); 
         return newHistory;
       });
 
-      // Jika mode AUTO aktif, sinkronkan nilai UI agar slider bergerak sendiri
+      
       if (isAuto && data.current_fuel !== undefined) {
         setFuelFeed(data.current_fuel);
         setSteamValve(data.current_valve);
@@ -135,7 +131,7 @@ export default function App() {
     };
   }, [isAuto]);
 
-  // --- EFEK 2: MENGIRIM DATA KONTROL KE PYTHON ---
+  
   useEffect(() => {
     socket.emit('control_update', {
       fuel_feed: fuelFeed,
@@ -168,16 +164,14 @@ export default function App() {
       
       <div className="absolute inset-0 bg-slate-950/60 z-0 pointer-events-none" />
 
-      {/* ── NAVIGASI ATAS ────────────────────────────── */}
+      {}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center justify-between w-[500px] bg-slate-900/40 backdrop-blur-md border border-slate-600/40 rounded-md p-1 shadow-2xl">
         <button className="flex-1 py-2 text-gray-400 font-bold tracking-widest text-xs hover:text-white transition rounded-md">DATA</button>
         <button className="flex-1 py-3 bg-blue-900/60 border border-[#00f0ff]/50 text-[#00f0ff] font-bold tracking-widest text-xs shadow-[0_0_15px_rgba(0,240,255,0.3)] rounded-md">SIMULATION</button>
         <button className="flex-1 py-2 text-gray-400 font-bold tracking-widest text-xs hover:text-white transition rounded-md">ANALYTIC</button>
       </div>
 
-      {/* ══════════════════════════════════════════
-          PANEL KIRI — SYSTEM MONITORING
-      ══════════════════════════════════════════ */}
+      {}
       <div className="absolute top-8 left-6 bottom-[100px] w-[420px] rounded-md p-5 flex flex-col gap-4 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
         
         <h2 className="text-center font-bold tracking-[0.2em] text-sm text-gray-200 border-b border-slate-600/50 pb-3">SYSTEM MONITORING</h2>
@@ -278,16 +272,16 @@ export default function App() {
               </span>
             </div>
 
-            {/* Animasi Tangki Air Visual */}
+            {}
             <div className="flex-1 w-full relative border border-slate-600 bg-slate-900 rounded-md overflow-hidden shadow-inner">
-              {/* Garis Batas Fatal High (90%) */}
+              {}
               <div className="absolute w-full border-t border-red-500/50 border-dashed z-10" style={{ bottom: '90%' }} />
-              {/* Garis Target Optimal (72%) */}
+              {}
               <div className="absolute w-full border-t border-green-400/80 border-dashed z-10" style={{ bottom: '72%' }} />
-              {/* Garis Batas Fatal Low (15%) */}
+              {}
               <div className="absolute w-full border-t border-red-500/50 border-dashed z-10" style={{ bottom: '15%' }} />
               
-              {/* Air di dalam drum */}
+              {}
               <div 
                 className={`absolute bottom-0 left-0 w-full transition-all duration-500 ${
                   simData.water_level > 80 ? 'bg-red-500/80' : 
@@ -322,9 +316,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          PANEL KANAN — CONTROL PANEL
-      ══════════════════════════════════════════ */}
+      {}
       <div className="absolute top-8 right-6 bottom-[100px] w-[380px] rounded-md p-5 flex flex-col gap-5 z-10 pointer-events-auto text-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={panelStyle}>
         
         <h2 className="text-center font-bold tracking-[0.2em] text-sm text-gray-200 border-b border-slate-600/50 pb-3">CONTROL PANEL</h2>
@@ -416,9 +408,7 @@ export default function App() {
         )}
       </div>
 
-      {/* ══════════════════════════════════════════
-          PANEL BAWAH (SYSTEM STATUS BAR)
-      ══════════════════════════════════════════ */}
+      {}
       <div className="absolute bottom-6 left-[460px] right-[420px] min-w-[300px] h-[72px] rounded-md p-4 flex items-center gap-6 z-10 pointer-events-auto text-white" style={panelStyle}>
         <div className="flex-1 border-r border-slate-600/50 flex flex-col justify-center pl-2">
           <div className="flex items-center gap-3 mb-1">
@@ -448,9 +438,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          LAYER 0: 3D CANVAS R3F
-      ══════════════════════════════════════════ */}
+      {}
       <div className="absolute inset-0 z-0">
         <Canvas camera={{ position: [90, 60, 90], fov: 45 }}>
           <ambientLight intensity={0.5} />

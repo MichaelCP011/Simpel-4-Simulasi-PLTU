@@ -6,8 +6,8 @@ export default function PltuModel() {
   return (
     <primitive 
       object={scene} 
-      scale={60} // Diperbesar 20x lipat dari aslinya
-      position={[0, 7, 3]} // Posisinya digeser ke bawah agar pas di tengah kamera
+      scale={60} 
+      position={[0, 7, 3]} 
     />
   );
 }
