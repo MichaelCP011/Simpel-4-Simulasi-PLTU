@@ -10,7 +10,7 @@ class AirFlowSystem :
     def calculate_efficiency_factor (self ,fuel_feed_tph ,air_flow_pct ):
         fuel_rate_kgs =fuel_feed_tph *(1000.0 /3600.0 )
 
-
+ 
 
         max_air_supply_kgs =self .optimal_afr 
         air_rate_kgs =(air_flow_pct /100.0 )*fuel_rate_kgs *max_air_supply_kgs 

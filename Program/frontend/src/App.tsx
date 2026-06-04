@@ -200,27 +200,49 @@ export default function App() {
 
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-md p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(0,240,255,0.1))' }}>
+            {/* GAUGE STEAM PRESS */}
+            <div className="rounded-md p-3 pb-2 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(0,240,255,0.1))' }}>
               <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">STEAM PRESS</span>
               <GaugeComponent
                 type="semicircle"
-                arc={{ colorArray: ['#00f0ff', '#ff003c'], padding: 0.02, width: 0.15 }}
+                arc={{ 
+                  width: 0.15,
+                  padding: 0.02,
+                  subArcs: [
+                    { limit: 165, color: '#00f0ff' },
+                    { limit: 185, color: '#a855f7' },
+                    { limit: 250, color: '#ff003c' }
+                  ]
+                }}
                 pointer={{ type: "needle", color: '#ffffff', animationDelay: 0, length: 0.8 }}
                 labels={{ valueLabel: { matchColorWithArc: true, formatTextValue: () => '' }, tickLabels: { hideMinMax: true } }}
-                value={Math.min(100, (simData.steam_press / 200) * 100)} 
-                style={{ width: '100%', marginBottom: '-25px' }}
+                value={simData.steam_press}
+                minValue={0}
+                maxValue={250}
+                style={{ width: '100%' }}
               />
             </div>
 
-            <div className="rounded-md p-3 pb-0 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(255,0,60,0.1))' }}>
+            {/* GAUGE BOILER TEMP */}
+            <div className="rounded-md p-3 pb-2 flex flex-col items-center overflow-hidden" style={{ ...sectionStyle, filter: 'drop-shadow(0 0 10px rgba(255,0,60,0.1))' }}>
               <span className="text-[10px] font-bold tracking-widest text-gray-400 mb-2">BOILER TEMP</span>
               <GaugeComponent
                 type="semicircle"
-                arc={{ colorArray: ['#00f0ff', '#ff003c'], padding: 0.02, width: 0.15 }}
+                arc={{ 
+                  width: 0.15,
+                  padding: 0.02,
+                  subArcs: [
+                    { limit: 540, color: '#00f0ff' },
+                    { limit: 560, color: '#a855f7' },
+                    { limit: 700, color: '#ff003c' }
+                  ]
+                }}
                 pointer={{ type: "needle", color: '#ffffff', animationDelay: 0, length: 0.8 }}
                 labels={{ valueLabel: { matchColorWithArc: true, formatTextValue: () => '' }, tickLabels: { hideMinMax: true } }}
-                value={Math.min(100, (simData.boiler_temp / 600) * 100)} 
-                style={{ width: '100%', marginBottom: '-25px' }}
+                value={simData.boiler_temp}
+                minValue={0}
+                maxValue={700}
+                style={{ width: '100%' }}
               />
             </div>
           </div>
@@ -438,12 +460,48 @@ export default function App() {
         </div>
       </div>
 
-      {}
+      {/* ══════════════════════════════════════════
+          LAYER 0: VFX & 3D CANVAS R3F
+      ══════════════════════════════════════════ */}
       <div className="absolute inset-0 z-0">
+        
+        {/* --- 1. VFX Uap Kinerja (Opasitas menyesuaikan MW Output) --- */}
+        <div 
+          className="absolute inset-0 pointer-events-none transition-opacity duration-1000 mix-blend-screen z-10"
+          style={{
+            background: 'radial-gradient(circle at 50% 60%, rgba(150,200,255,0.15) 0%, transparent 60%)',
+            opacity: Math.min(1, simData.mw_out / 300)
+          }}
+        />
+        
+        {/* --- 2. VFX Ambient Merah (Overheat Warning) --- */}
+        <div 
+          className={`absolute inset-0 pointer-events-none transition-opacity duration-500 z-10 ${simData.boiler_temp > 560 ? 'opacity-100 animate-pulse' : 'opacity-0'}`}
+          style={{ boxShadow: 'inset 0 0 250px rgba(255,0,60,0.6)' }}
+        />
+
+        {/* --- 3. VFX Ambient Biru (Water Level Warning) --- */}
+        <div 
+          className={`absolute inset-0 pointer-events-none transition-opacity duration-500 z-10 ${(simData.water_level > 85 || simData.water_level < 45) && simData.boiler_temp <= 560 ? 'opacity-100 animate-pulse' : 'opacity-0'}`}
+          style={{ boxShadow: 'inset 0 0 250px rgba(0,240,255,0.4)' }}
+        />
+
+        {/* --- R3F CANVAS --- */}
         <Canvas camera={{ position: [90, 60, 90], fov: 45 }}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[20, 30, 20]} intensity={2.5} color="#ffffff" />
-          <pointLight position={[-20, 20, -20]} intensity={1.5} color="#00f0ff" />
+          <ambientLight 
+            intensity={simData.boiler_temp > 560 ? 0.8 : 0.5} 
+            color={simData.boiler_temp > 560 ? '#ff2222' : '#ffffff'} 
+          />
+          <directionalLight 
+            position={[20, 30, 20]} 
+            intensity={simData.boiler_temp > 560 ? 4.0 : 2.5} 
+            color={simData.boiler_temp > 560 ? '#ff0000' : '#ffffff'} 
+          />
+          <pointLight 
+            position={[-20, 20, -20]} 
+            intensity={1.5} 
+            color={simData.boiler_temp > 560 ? '#ff0000' : '#00f0ff'} 
+          />
           
           <Environment preset="city" />
           
@@ -452,7 +510,7 @@ export default function App() {
             enableZoom={true} 
             enableRotate={true}
             autoRotate={true} 
-            autoRotateSpeed={3} 
+            autoRotateSpeed={0.5} 
             maxPolarAngle={Math.PI / 2 - 0.02}
             minDistance={30}
             maxDistance={400}
